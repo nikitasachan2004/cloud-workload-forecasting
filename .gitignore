@@ -1,0 +1,11 @@
+*.egg-info/
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+build/
+dist/
+.DS_Store
+
+challenge_data/*.csv.gz
+*.csv.gz
