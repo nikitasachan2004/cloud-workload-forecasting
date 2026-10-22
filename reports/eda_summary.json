@@ -1,0 +1,22 @@
+{
+  "n_vms": 10000,
+  "n_observations": 1340000,
+  "n_timestamps": 134,
+  "cadence_seconds": 300,
+  "mean_cpu_overall": 9.388100729421827,
+  "std_cpu_overall": 14.266005584082453,
+  "total_variance_ddof0": 203.51876344528415,
+  "between_vm_var_ddof0": 169.46909791864505,
+  "between_vm_var_pct": 83.2695202396936,
+  "within_vm_var_ddof0": 34.04966552663913,
+  "within_vm_var_pct": 16.7304797603064,
+  "train_agg_mean": 9.414089019539007,
+  "train_agg_std": 0.19356833547362823,
+  "holdout_agg_mean": 9.268987733051413,
+  "holdout_agg_std": 0.15572447344567772,
+  "adf_stat": -1.7348231782504964,
+  "adf_pvalue": 0.4132656887034456,
+  "lag1_acf": 0.6620683329704645,
+  "lag2_acf": 0.5945549263491395,
+  "lag3_acf": 0.6639801300680058
+}
