@@ -1,5 +1,6 @@
-"""Forecasting models: Recursive multi-step architectures."""
+"""Forecasting models: Direct and Recursive multi-step architectures."""
 from __future__ import annotations
+
 from typing import Any
 import numpy as np
 import pandas as pd
@@ -7,9 +8,99 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from lightgbm import LGBMRegressor
+
 from cwfc.features import make_lag_features
 
 
+class DirectForecaster:
+    """Direct multi-step forecaster.
+
+    Fits an independent estimator for each lookahead step h in 1..H.
+    Avoids recursive error compounding and extrapolative drift on longer horizons.
+
+    Parameters
+    ----------
+    estimator_factory : callable
+        Factory returning a fresh scikit-learn compatible estimator for each horizon.
+    lags : list[int]
+        Lag offsets at forecast origin (e.g. [1, 2, 3, 4]).
+    """
+
+    def __init__(
+        self,
+        estimator_factory: Any,
+        lags: list[int] = [1, 2, 3, 4],
+    ):
+        self.estimator_factory = estimator_factory
+        self.lags = lags
+        self.models_: dict[int, Any] = {}
+        self.fallback_val_: float = 0.0
+        self.is_fitted = False
+
+    def fit(self, series: pd.Series, max_horizon: int = 24) -> DirectForecaster:
+        """Fit independent models for each step h in 1..max_horizon."""
+        y = np.asarray(series, dtype=float)
+        n = len(y)
+        if n == 0:
+            raise ValueError("Training series cannot be empty")
+
+        self.fallback_val_ = float(y[-1])
+        max_lag = max(self.lags)
+
+        # Adaptively scale lags for tiny smoke datasets
+        active_lags = [l for l in self.lags if l < n - 1]
+        if not active_lags:
+            active_lags = [1] if n >= 2 else []
+
+        if not active_lags or n <= max(active_lags) + 2:
+            self.is_fitted = True
+            return self
+
+        self.models_ = {}
+        for h in range(1, max_horizon + 1):
+            X_list, y_list = [], []
+            for t in range(max(active_lags), n - h):
+                feat = [y[t - (l - 1)] for l in active_lags]
+                X_list.append(feat)
+                y_list.append(y[t + h])
+
+            if len(X_list) >= 4:
+                est = self.estimator_factory()
+                est.fit(np.array(X_list), np.array(y_list))
+                self.models_[h] = (est, active_lags)
+
+        self.is_fitted = True
+        return self
+
+    def predict(self, history: pd.Series, horizon: int = 24) -> pd.Series:
+        """Predict the next `horizon` steps directly from historical values."""
+        if not self.is_fitted:
+            raise RuntimeError("Forecaster must be fitted before predict")
+        if horizon <= 0:
+            raise ValueError("Horizon must be positive")
+
+        y = np.asarray(history, dtype=float)
+        n = len(y)
+        predictions = []
+
+        for h in range(1, horizon + 1):
+            if h in self.models_ and n > 2:
+                est, active_lags = self.models_[h]
+                if n >= max(active_lags):
+                    feat = np.array([[y[-l] for l in active_lags]])
+                    pred = float(est.predict(feat)[0])
+                else:
+                    pred = self.fallback_val_
+            else:
+                pred = self.fallback_val_
+
+            pred = max(0.0, min(100.0, pred))
+            predictions.append(pred)
+
+        return pd.Series(predictions)
+
+
+class RecursiveForecaster:
     """Recursive multi-step forecaster using strictly causal 1-step lag features.
 
     Parameters
